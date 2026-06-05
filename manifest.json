@@ -1,0 +1,47 @@
+{
+  "id": "apsystems",
+  "type": "integration",
+  "name": "APsystems",
+  "version": "0.1.0",
+  "description": "APsystems micro-inverters (DS3/YC600/QS1) via the ESP32-ECU MQTT bridge",
+  "icon": "Sun",
+  "repo": "mchacher/sowel-plugin-apsystems",
+  "author": "mchacher",
+  "sowelVersion": ">=1.21.0",
+  "settings": [
+    {
+      "key": "mqtt_url",
+      "label": "MQTT Broker URL",
+      "type": "text",
+      "required": true,
+      "placeholder": "mqtt://localhost:1883"
+    },
+    {
+      "key": "mqtt_username",
+      "label": "MQTT Username",
+      "type": "text",
+      "required": false
+    },
+    {
+      "key": "mqtt_password",
+      "label": "MQTT Password",
+      "type": "password",
+      "required": false
+    },
+    {
+      "key": "mqtt_client_id",
+      "label": "MQTT Client ID",
+      "type": "text",
+      "required": false,
+      "defaultValue": "sowel-apsystems"
+    },
+    {
+      "key": "base_topic",
+      "label": "ESP32-ECU Topic Root",
+      "type": "text",
+      "required": false,
+      "defaultValue": "esp32ecu"
+    }
+  ],
+  "apiVersion": 2
+}
