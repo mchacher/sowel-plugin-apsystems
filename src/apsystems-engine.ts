@@ -43,7 +43,8 @@ export class ApsystemsEngine {
   private readonly eventBus: EventBus;
   private readonly logger: Logger;
 
-  /** Serials discovered at least once — used to flip absent inverters offline. */
+  /** Device ids (Name, or serial when unnamed) discovered at least once — used
+   * to flip absent inverters offline. */
   private readonly known = new Set<string>();
 
   constructor(
@@ -82,19 +83,19 @@ export class ApsystemsEngine {
       const present = new Set<string>();
 
       for (const s of samples) {
-        present.add(s.serial);
-        this.known.add(s.serial);
+        present.add(s.id);
+        this.known.add(s.id);
         this.deviceManager.upsertFromDiscovery(this.integrationId, this.integrationId, s.discovered);
-        this.deviceManager.updateDeviceData(this.integrationId, s.serial, s.data);
-        this.deviceManager.updateDeviceStatus(this.integrationId, s.serial, "online");
+        this.deviceManager.updateDeviceData(this.integrationId, s.id, s.data);
+        this.deviceManager.updateDeviceStatus(this.integrationId, s.id, "online");
       }
 
       // Inverters that have produced before but are absent this cycle are offline
       // (out of range, or night — DS3 are panel-powered). updateDeviceStatus is
       // idempotent, so re-asserting offline each cycle is cheap.
-      for (const serial of this.known) {
-        if (!present.has(serial)) {
-          this.deviceManager.updateDeviceStatus(this.integrationId, serial, "offline");
+      for (const id of this.known) {
+        if (!present.has(id)) {
+          this.deviceManager.updateDeviceStatus(this.integrationId, id, "offline");
         }
       }
 
@@ -113,8 +114,8 @@ export class ApsystemsEngine {
         this.eventBus.emit({ type: "system.integration.connected", integrationId: this.integrationId });
         this.logger.info("ESP32-ECU bridge online");
       } else if (value === "Offline") {
-        for (const serial of this.known) {
-          this.deviceManager.updateDeviceStatus(this.integrationId, serial, "offline");
+        for (const id of this.known) {
+          this.deviceManager.updateDeviceStatus(this.integrationId, id, "offline");
         }
         this.eventBus.emit({
           type: "system.integration.disconnected",

@@ -46,6 +46,17 @@ describe("ApsystemsEngine.handleSensor", () => {
     expect(deviceManager.updateDeviceStatus).toHaveBeenCalledWith("apsystems", "B", "online");
   });
 
+  it("uses the firmware Name as the device id (serial key ignored for identity)", () => {
+    const { engine, deviceManager } = mkEngine();
+    engine.handleSensor({ "705000165830": { ...inverter(120), Name: "INV_1" } });
+    expect(deviceManager.updateDeviceData).toHaveBeenCalledWith(
+      "apsystems",
+      "INV_1",
+      expect.objectContaining({ power: 120, serial: "705000165830" }),
+    );
+    expect(deviceManager.updateDeviceStatus).toHaveBeenCalledWith("apsystems", "INV_1", "online");
+  });
+
   it("flips a previously-seen but now-absent inverter offline", () => {
     const { engine, deviceManager } = mkEngine();
     engine.handleSensor({ A: inverter(), B: inverter() }); // both seen

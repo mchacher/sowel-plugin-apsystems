@@ -29,10 +29,17 @@ export interface DiscoveredDevice {
 
 /** One inverter's discovery definition + the flat data values to push. */
 export interface InverterSample {
-  /** 12-hex serial — the stable Sowel sourceDeviceId. */
+  /** Sowel sourceDeviceId = the firmware `Name` (the logical slot, e.g. "INV_1")
+   * when set, else the 12-hex serial. Stable across a hardware swap as long as the
+   * replacement unit is given the same Name. */
+  id: string;
+  /** Hardware serial (the SENSOR key) — always available, exposed as a read-only
+   * data point so the current hardware behind each slot is visible. */
   serial: string;
+  /** The firmware-set friendly Name, if any. */
+  name?: string;
   discovered: DiscoveredDevice;
-  data: Record<string, number>;
+  data: Record<string, number | string>;
 }
 
 /** Inverter-level MQTT field → Sowel device data key/category/unit. */
@@ -74,7 +81,7 @@ function isFiniteNumber(v: unknown): v is number {
  * no usable numeric telemetry. Only fields actually present are emitted.
  */
 function buildInverterSample(serial: string, obj: Record<string, unknown>): InverterSample | null {
-  const data: Record<string, number> = {};
+  const data: Record<string, number | string> = {};
   const dataDefs: DiscoveredDevice["data"] = [];
 
   for (const f of INVERTER_FIELDS) {
@@ -102,10 +109,24 @@ function buildInverterSample(serial: string, obj: Record<string, unknown>): Inve
 
   if (dataDefs.length === 0) return null;
 
+  // Identity = the firmware Name (the logical slot) when set, else the serial.
+  // Lets a replaced inverter (new serial, same Name) reuse the same Sowel device
+  // — bindings and equipments are preserved, no reconfiguration needed.
+  const rawName = obj.Name;
+  const name = typeof rawName === "string" && rawName.trim() ? rawName.trim() : undefined;
+  const id = name ?? serial;
+
+  // Expose the hardware serial as a read-only text data point so the current
+  // unit behind each slot stays visible (and follows a hardware swap).
+  data.serial = serial;
+  dataDefs.push({ key: "serial", type: "text", category: "generic" });
+
   return {
+    id,
     serial,
+    ...(name ? { name } : {}),
     discovered: {
-      friendlyName: serial,
+      friendlyName: id,
       manufacturer: "APsystems",
       model: "DS3",
       data: dataDefs,
@@ -117,8 +138,9 @@ function buildInverterSample(serial: string, obj: Record<string, unknown>): Inve
 
 /**
  * Parse a decoded `tele/<root>/SENSOR` payload (object keyed by serial) into an
- * array of InverterSample. The optional `Name` field per inverter is ignored
- * (informational — device identity is the serial). Malformed input yields `[]`.
+ * array of InverterSample. The optional `Name` field becomes the Sowel device
+ * identity (the logical slot); the serial is the fallback id and a read-only
+ * data point. Malformed input yields `[]`.
  */
 export function parseSensorPayload(payload: unknown): InverterSample[] {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return [];

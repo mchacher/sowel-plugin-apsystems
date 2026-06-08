@@ -28,7 +28,10 @@ describe("parseSensorPayload", () => {
     expect(samples).toHaveLength(1);
     const s = samples[0];
     expect(s.serial).toBe("705000165830");
+    // No Name on this inverter → identity falls back to the serial.
+    expect(s.id).toBe("705000165830");
     expect(s.discovered.friendlyName).toBe("705000165830");
+    expect(s.data.serial).toBe("705000165830");
     expect(s.discovered.manufacturer).toBe("APsystems");
     expect(s.discovered.orders).toEqual([]);
 
@@ -46,8 +49,8 @@ describe("parseSensorPayload", () => {
     expect(s.data.ch1_energy).toBe(848.6);
     expect(s.data.ch2_power).toBe(58.6);
 
-    // 6 inverter-level + 8 channel = 14 data points
-    expect(s.discovered.data).toHaveLength(14);
+    // 6 inverter-level + 8 channel + serial = 15 data points
+    expect(s.discovered.data).toHaveLength(15);
   });
 
   it("maps Temperature to inverter_temp / temperature_device", () => {
@@ -89,10 +92,24 @@ describe("parseSensorPayload", () => {
     expect(s.discovered.data.some((d) => d.key.startsWith("ch2_"))).toBe(false);
   });
 
-  it("Name field is read but not emitted as a data point", () => {
-    const [s] = parseSensorPayload({ "705000165830": inverter({ Name: "Toit Sud" }) });
+  it("Name becomes the Sowel identity; serial stays available", () => {
+    const [s] = parseSensorPayload({ "705000165830": inverter({ Name: "INV_1" }) });
+    expect(s.id).toBe("INV_1");
+    expect(s.name).toBe("INV_1");
+    expect(s.discovered.friendlyName).toBe("INV_1");
+    // The serial is preserved (data point) but is no longer the identity.
+    expect(s.serial).toBe("705000165830");
+    expect(s.data.serial).toBe("705000165830");
+    // `Name` itself is not pushed as a raw data key.
     expect(s.data).not.toHaveProperty("Name");
-    expect(s.discovered.data.some((d) => d.key === "Name")).toBe(false);
+  });
+
+  it("empty/blank Name → identity falls back to the serial", () => {
+    const [a] = parseSensorPayload({ "705000165830": inverter({ Name: "" }) });
+    expect(a.id).toBe("705000165830");
+    expect(a.name).toBeUndefined();
+    const [b] = parseSensorPayload({ "705000165830": inverter({ Name: "   " }) });
+    expect(b.id).toBe("705000165830");
   });
 
   it("malformed / non-object payloads → empty array, no throw", () => {

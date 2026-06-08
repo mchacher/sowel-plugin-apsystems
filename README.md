@@ -13,15 +13,33 @@ micro-inverter**, and pushes per-channel data so you can bind a **Solar Panel** 
 
 - Subscribes to `tele/<root>/SENSOR` (retained JSON keyed by inverter serial) and
   `tele/<root>/LWT` (bridge presence).
-- Discovers one device per serial, exposing:
+- Discovers one device per inverter, exposing:
   - inverter level: `power`, `energy`, `ac_voltage`, `frequency`, `inverter_temp`
-    (category `temperature_device`), `signal`
+    (category `temperature_device`), `signal`, `serial` (read-only text)
   - per channel: `ch<N>_voltage`, `ch<N>_current`, `ch<N>_power`, `ch<N>_energy`
 - Marks an inverter **offline** when it drops out of the `SENSOR` payload (out of range,
   or at night — DS3 are panel-powered), and all inverters offline when the bridge `LWT`
   goes `Offline`.
 
 Read-only: the bridge does not accept commands.
+
+## Device identity (hardware swaps)
+
+The Sowel `sourceDeviceId` is the inverter's firmware **`Name`** (the logical slot, e.g.
+`INV_1`), falling back to the serial when no Name is set. So the Name is the stable
+reference: **replace a dead inverter, give the new unit the same Name, and Sowel keeps
+the same device** — bindings, equipments and history are preserved, no reconfiguration.
+The hardware serial is still pushed as a read-only `serial` data point so you can see
+which unit currently sits behind each slot.
+
+Two consequences (like Zigbee2MQTT friendly names):
+
+- **Names must be unique** across inverters (the serial guarantees uniqueness, the Name
+  does not). Two inverters sharing a Name would collide on one device.
+- **Renaming** an inverter in the firmware creates a *new* Sowel device — the Name is the
+  identity, so treat it as the stable slot label, not something to change casually.
+
+Name your inverters in the ESP32-ECU web UI **before** configuring them in Sowel.
 
 ## Binding to Sowel equipments
 
