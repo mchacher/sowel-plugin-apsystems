@@ -1,6 +1,6 @@
 {
   "name": "sowel-plugin-apsystems",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Sowel plugin: APsystems micro-inverters (DS3/YC600/QS1) via the ESP32-ECU MQTT bridge",
   "type": "module",
   "main": "dist/index.js",
