@@ -136,13 +136,26 @@ class ApsystemsPlugin implements IntegrationPlugin {
     const baseTopic = this.getSetting("base_topic") ?? "esp32ecu";
 
     try {
-      this.mqtt = new MqttConnector(
+      const connector = new MqttConnector(
         mqttUrl,
         { username: mqttUsername, password: mqttPassword, clientId: mqttClientId },
         this.eventBus,
         this.logger,
         INTEGRATION_ID,
+        // Keep `this.status` in sync with the real socket for the whole
+        // lifetime of the plugin, not just the snapshot taken below: a broker
+        // unreachable at boot connects for real seconds later, and the old
+        // one-shot read froze the plugin on "disconnected" forever
+        // (mchacher/sowel-plugin-zigbee2mqtt#19).
+        (connected) => {
+          // Ignore a connector this plugin no longer owns (a stop/start cycle
+          // leaves the old client emitting for a while), and never resurrect a
+          // start() that failed.
+          if (this.mqtt !== connector || this.status === "error") return;
+          this.status = connected ? "connected" : "disconnected";
+        },
       );
+      this.mqtt = connector;
       await this.mqtt.connect();
 
       this.engine = new ApsystemsEngine(
@@ -155,6 +168,8 @@ class ApsystemsPlugin implements IntegrationPlugin {
       );
       this.engine.start();
 
+      // Best-effort snapshot for the log line below: the callback above is the
+      // source of truth from here on and corrects it once the broker answers.
       this.status = this.mqtt.isConnected() ? "connected" : "disconnected";
       this.logger.info("APsystems plugin started");
     } catch (err) {

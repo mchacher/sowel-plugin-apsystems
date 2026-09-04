@@ -2,7 +2,7 @@
   "id": "apsystems",
   "type": "integration",
   "name": "APsystems",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "APsystems micro-inverters (DS3/YC600/QS1) via the ESP32-ECU MQTT bridge",
   "icon": "Sun",
   "repo": "mchacher/sowel-plugin-apsystems",
