@@ -10,6 +10,7 @@
 
 import type { MqttConnector } from "./mqtt-connector.js";
 import { parseJson, parseSensorPayload } from "./apsystems-parser.js";
+import { EnergyDeltas } from "./energy-deltas.js";
 
 export interface Logger {
   child(bindings: Record<string, unknown>): Logger;
@@ -33,6 +34,12 @@ export interface DeviceManager {
     payload: Record<string, unknown>,
   ): void;
   updateDeviceStatus(integrationId: string, sourceDeviceId: string, status: string): void;
+  /** Available since Sowel v1.5.1 — used to rehydrate energy counter baselines. */
+  getDeviceDataValue?(
+    integrationId: string,
+    sourceDeviceId: string,
+    key: string,
+  ): string | number | boolean | null;
 }
 
 export class ApsystemsEngine {
@@ -46,6 +53,9 @@ export class ApsystemsEngine {
   /** Device ids (Name, or serial when unnamed) discovered at least once — used
    * to flip absent inverters offline. */
   private readonly known = new Set<string>();
+
+  /** Turns the cumulative energy counters into Sowel's per-report deltas. */
+  private readonly energy: EnergyDeltas;
 
   constructor(
     integrationId: string,
@@ -61,6 +71,7 @@ export class ApsystemsEngine {
     this.deviceManager = deviceManager;
     this.eventBus = eventBus;
     this.logger = logger;
+    this.energy = new EnergyDeltas(integrationId, deviceManager, logger);
   }
 
   start(): void {
@@ -86,7 +97,7 @@ export class ApsystemsEngine {
         present.add(s.id);
         this.known.add(s.id);
         this.deviceManager.upsertFromDiscovery(this.integrationId, this.integrationId, s.discovered);
-        this.deviceManager.updateDeviceData(this.integrationId, s.id, s.data);
+        this.deviceManager.updateDeviceData(this.integrationId, s.id, this.energy.apply(s.id, s.data));
         this.deviceManager.updateDeviceStatus(this.integrationId, s.id, "online");
       }
 

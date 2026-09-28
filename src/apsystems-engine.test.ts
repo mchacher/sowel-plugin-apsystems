@@ -32,6 +32,15 @@ function mkEngine() {
 }
 
 describe("ApsystemsEngine.handleSensor", () => {
+  it("pushes energy as a per-report delta and the counter under *_total (sowel#934)", () => {
+    const { engine, deviceManager } = mkEngine();
+    engine.handleSensor({ A: inverter() });
+    engine.handleSensor({ A: { ...inverter(), Energy: 1004.5, Ch1Energy: 802 } });
+
+    const last = deviceManager.updateDeviceData.mock.calls.at(-1)![2] as Record<string, unknown>;
+    expect(last).toMatchObject({ energy: 4.5, energy_total: 1004.5, ch1_energy: 2, ch1_energy_total: 802 });
+  });
+
   it("discovers + marks online each present inverter", () => {
     const { engine, deviceManager } = mkEngine();
     engine.handleSensor({ A: inverter(), B: inverter(50) });
