@@ -52,6 +52,16 @@ export class EnergyDeltas {
    */
   private readonly baselines = new Map<string, number | undefined>();
 
+  /**
+   * `<deviceId>\0<totalKey>` → the last good counter before a backwards step,
+   * held until the counter shows which it was. Back at or above it: the drop
+   * was a failed read, and the production since the last good value is
+   * credited from there — not the whole counter, which the jump cap cannot
+   * catch on a counter under 10 kWh. Moving up from the low value but still
+   * below it: a genuine reset, counted from the low value.
+   */
+  private readonly beforeDrop = new Map<string, number>();
+
   constructor(
     private readonly integrationId: string,
     private readonly deviceManager: DeviceManager,
@@ -80,17 +90,33 @@ export class EnergyDeltas {
     // Fresh device, or nothing persisted yet: anchor without crediting.
     if (baseline === undefined) return 0;
 
-    if (raw < baseline) {
+    let from = baseline;
+    const lastGood = this.beforeDrop.get(id);
+    if (lastGood !== undefined) {
+      if (raw >= lastGood) {
+        // The drop was a failed read: count from the last good value.
+        from = lastGood;
+        this.beforeDrop.delete(id);
+      } else if (raw > baseline) {
+        // Counting up from the low value: it was a genuine reset.
+        this.beforeDrop.delete(id);
+      } else {
+        // Still at (or below) the low value: undecided, nothing produced.
+        return 0;
+      }
+    } else if (raw < baseline) {
+      this.beforeDrop.set(id, baseline);
       this.logger.warn(
         { deviceId, key: totalKey, previous: baseline, current: raw },
-        "Energy counter went backwards (reset) — re-anchoring, emitting 0",
+        "Energy counter went backwards (reset or failed read) — emitting 0",
       );
       return 0;
     }
-    const deltaWh = raw - baseline;
+
+    const deltaWh = raw - from;
     if (deltaWh > MAX_DELTA_WH) {
       this.logger.warn(
-        { deviceId, key: totalKey, previous: baseline, current: raw, deltaWh },
+        { deviceId, key: totalKey, previous: from, current: raw, deltaWh },
         "Implausible energy jump — re-anchoring, emitting 0",
       );
       return 0;

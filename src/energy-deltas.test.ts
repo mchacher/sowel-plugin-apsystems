@@ -53,6 +53,25 @@ describe("EnergyDeltas (sowel#934)", () => {
     expect(logger.info).toHaveBeenCalled();
   });
 
+  it("a failed read at 0 does not credit the whole counter when it comes back", () => {
+    const { deltas } = mk();
+    deltas.apply("INV_1", { energy_total: 1732 });
+    expect(deltas.apply("INV_1", { energy_total: 0 }).energy).toBe(0);
+    expect(deltas.apply("INV_1", { energy_total: 0 }).energy).toBe(0);
+    expect(deltas.apply("INV_1", { energy_total: 1733 }).energy).toBe(1);
+    expect(deltas.apply("INV_1", { energy_total: 1735 }).energy).toBe(2);
+  });
+
+  it("a genuine reset counts from the low value, then forgets the old one", () => {
+    const { deltas } = mk();
+    deltas.apply("INV_1", { energy_total: 1732 });
+    deltas.apply("INV_1", { energy_total: 0 });
+    expect(deltas.apply("INV_1", { energy_total: 2 }).energy).toBe(2);
+    expect(deltas.apply("INV_1", { energy_total: 1000 }).energy).toBe(998);
+    // Passing the pre-reset value later is ordinary production, not a return.
+    expect(deltas.apply("INV_1", { energy_total: 1740 }).energy).toBe(740);
+  });
+
   it("re-anchors on a counter that went backwards, and credits correctly after", () => {
     const { deltas, logger } = mk();
     deltas.apply("INV_1", { energy_total: 1732 });
