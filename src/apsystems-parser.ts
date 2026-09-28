@@ -9,6 +9,8 @@
  * This module is PURE (no MQTT, no Sowel deps) so it is fully unit-testable.
  */
 
+import { TOTAL_SUFFIX } from "./energy-deltas.js";
+
 export interface DiscoveredDevice {
   ieeeAddress?: string;
   friendlyName: string;
@@ -42,10 +44,17 @@ export interface InverterSample {
   data: Record<string, number | string>;
 }
 
+/**
+ * `Energy` / `Ch<N>Energy` are lifetime cumulative counters. They are carried
+ * raw under `<key>_total` (generic), and `<key>` is declared as the `energy`
+ * delta the engine derives from it — see energy-deltas.ts (sowel#934).
+ */
+type FieldDef = { key: string; category: string; unit: string; cumulative?: true };
+
 /** Inverter-level MQTT field → Sowel device data key/category/unit. */
-const INVERTER_FIELDS: { field: string; key: string; category: string; unit: string }[] = [
+const INVERTER_FIELDS: (FieldDef & { field: string })[] = [
   { field: "Power", key: "power", category: "power", unit: "W" },
-  { field: "Energy", key: "energy", category: "energy", unit: "Wh" },
+  { field: "Energy", key: "energy", category: "energy", unit: "Wh", cumulative: true },
   { field: "ACVoltage", key: "ac_voltage", category: "voltage", unit: "V" },
   { field: "Frequency", key: "frequency", category: "generic", unit: "Hz" },
   { field: "Temperature", key: "inverter_temp", category: "temperature_device", unit: "C" },
@@ -53,11 +62,11 @@ const INVERTER_FIELDS: { field: string; key: string; category: string; unit: str
 ];
 
 /** Per-channel metric suffix → Sowel key suffix/category/unit. */
-const CHANNEL_METRICS: { suffix: string; key: string; category: string; unit: string }[] = [
+const CHANNEL_METRICS: (FieldDef & { suffix: string })[] = [
   { suffix: "Voltage", key: "voltage", category: "voltage", unit: "V" },
   { suffix: "Current", key: "current", category: "current", unit: "A" },
   { suffix: "Power", key: "power", category: "power", unit: "W" },
-  { suffix: "Energy", key: "energy", category: "energy", unit: "Wh" },
+  { suffix: "Energy", key: "energy", category: "energy", unit: "Wh", cumulative: true },
 ];
 
 const CHANNEL_FIELD_RE = /^Ch(\d+)(Voltage|Current|Power|Energy)$/;
@@ -84,11 +93,20 @@ function buildInverterSample(serial: string, obj: Record<string, unknown>): Inve
   const data: Record<string, number | string> = {};
   const dataDefs: DiscoveredDevice["data"] = [];
 
+  const add = (key: string, def: FieldDef, v: number) => {
+    dataDefs.push({ key, type: "number", category: def.category, unit: def.unit });
+    if (def.cumulative) {
+      data[`${key}${TOTAL_SUFFIX}`] = v;
+      dataDefs.push({ key: `${key}${TOTAL_SUFFIX}`, type: "number", category: "generic", unit: def.unit });
+    } else {
+      data[key] = v;
+    }
+  };
+
   for (const f of INVERTER_FIELDS) {
     const v = obj[f.field];
     if (!isFiniteNumber(v)) continue;
-    data[f.key] = v;
-    dataDefs.push({ key: f.key, type: "number", category: f.category, unit: f.unit });
+    add(f.key, f, v);
   }
 
   // Discover the channels present, then map each channel's metrics in a stable order.
@@ -101,9 +119,7 @@ function buildInverterSample(serial: string, obj: Record<string, unknown>): Inve
     for (const cm of CHANNEL_METRICS) {
       const v = obj[`Ch${n}${cm.suffix}`];
       if (!isFiniteNumber(v)) continue;
-      const key = `ch${n}_${cm.key}`;
-      data[key] = v;
-      dataDefs.push({ key, type: "number", category: cm.category, unit: cm.unit });
+      add(`ch${n}_${cm.key}`, cm, v);
     }
   }
 

@@ -37,7 +37,9 @@ describe("parseSensorPayload", () => {
 
     // Inverter-level values
     expect(s.data.power).toBe(115.5);
-    expect(s.data.energy).toBe(1732.1);
+    // Cumulative counters travel raw under *_total; the engine derives the delta.
+    expect(s.data.energy_total).toBe(1732.1);
+    expect(s.data.energy).toBeUndefined();
     expect(s.data.ac_voltage).toBe(228.4);
     expect(s.data.frequency).toBe(50.02);
     expect(s.data.inverter_temp).toBe(19.1);
@@ -46,11 +48,12 @@ describe("parseSensorPayload", () => {
     expect(s.data.ch1_voltage).toBe(36.7);
     expect(s.data.ch1_current).toBe(1.55);
     expect(s.data.ch1_power).toBe(56.9);
-    expect(s.data.ch1_energy).toBe(848.6);
+    expect(s.data.ch1_energy_total).toBe(848.6);
+    expect(s.data.ch1_energy).toBeUndefined();
     expect(s.data.ch2_power).toBe(58.6);
 
-    // 6 inverter-level + 8 channel + serial = 15 data points
-    expect(s.discovered.data).toHaveLength(15);
+    // 6 inverter-level + 8 channel + serial + 3 energy counters (*_total) = 18
+    expect(s.discovered.data).toHaveLength(18);
   });
 
   it("maps Temperature to inverter_temp / temperature_device", () => {
@@ -68,6 +71,15 @@ describe("parseSensorPayload", () => {
     expect(byKey.ch1_current.category).toBe("current");
     expect(byKey.ch1_power.category).toBe("power");
     expect(byKey.ch1_energy.category).toBe("energy");
+  });
+
+  it("declares cumulative counters outside the energy category the core sums (sowel#934)", () => {
+    const [s] = parseSensorPayload({ "705000165830": inverter() });
+    const byKey = Object.fromEntries(s.discovered.data.map((d) => [d.key, d]));
+    for (const key of ["energy", "ch1_energy", "ch2_energy"]) {
+      expect(byKey[key]).toMatchObject({ category: "energy", unit: "Wh" });
+      expect(byKey[`${key}_total`]).toMatchObject({ category: "generic", unit: "Wh" });
+    }
   });
 
   it("two inverters → two independent samples", () => {

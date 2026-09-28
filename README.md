@@ -14,14 +14,36 @@ micro-inverter**, and pushes per-channel data so you can bind a **Solar Panel** 
 - Subscribes to `tele/<root>/SENSOR` (retained JSON keyed by inverter serial) and
   `tele/<root>/LWT` (bridge presence).
 - Discovers one device per inverter, exposing:
-  - inverter level: `power`, `energy`, `ac_voltage`, `frequency`, `inverter_temp`
-    (category `temperature_device`), `signal`, `serial` (read-only text)
-  - per channel: `ch<N>_voltage`, `ch<N>_current`, `ch<N>_power`, `ch<N>_energy`
+  - inverter level: `power`, `energy`, `energy_total`, `ac_voltage`, `frequency`,
+    `inverter_temp` (category `temperature_device`), `signal`, `serial` (read-only text)
+  - per channel: `ch<N>_voltage`, `ch<N>_current`, `ch<N>_power`, `ch<N>_energy`,
+    `ch<N>_energy_total`
 - Marks an inverter **offline** when it drops out of the `SENSOR` payload (out of range,
   or at night — DS3 are panel-powered), and all inverters offline when the bridge `LWT`
   goes `Offline`.
 
 Read-only: the bridge does not accept commands.
+
+## Energy: deltas, not counters
+
+The firmware's `Energy` / `Ch<N>Energy` are lifetime cumulative counters. Sowel's
+`energy` category is a **Wh delta per report** — the core sums it into hours and days —
+so the plugin publishes both (since v0.2.0):
+
+| Key | Category | Value |
+|---|---|---|
+| `energy`, `ch<N>_energy` | `energy` | Wh produced since the previous report |
+| `energy_total`, `ch<N>_energy_total` | `generic` | the raw counter, for display |
+
+The first report after install anchors and publishes 0. After a Sowel restart the last
+counter is read back, so what was produced meanwhile is credited once. A counter that
+goes backwards publishes 0 and keeps the last good value as `*_total` until it shows what
+happened: if it comes back to that value it was a failed read and counting resumes from
+there (across a Sowel restart too); if it counts up from the low value it was a reset (or
+a replaced inverter). A jump of more than 10 kWh in one report is refused.
+
+Before v0.2.0 the counters were published under `energy` directly, which the core
+summed: energy history written by an earlier version is wrong and should be discarded.
 
 ## Device identity (hardware swaps)
 
