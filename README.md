@@ -37,9 +37,10 @@ so the plugin publishes both (since v0.2.0):
 
 The first report after install anchors and publishes 0. After a Sowel restart the last
 counter is read back, so what was produced meanwhile is credited once. A counter that
-goes backwards publishes 0: if it comes back to its previous value it was a failed read
-and counting resumes from there; if it counts up from the low value it was a reset (or a
-replaced inverter). A jump of more than 10 kWh in one report is refused.
+goes backwards publishes 0 and keeps the last good value as `*_total` until it shows what
+happened: if it comes back to that value it was a failed read and counting resumes from
+there (across a Sowel restart too); if it counts up from the low value it was a reset (or
+a replaced inverter). A jump of more than 10 kWh in one report is refused.
 
 Before v0.2.0 the counters were published under `energy` directly, which the core
 summed: energy history written by an earlier version is wrong and should be discarded.

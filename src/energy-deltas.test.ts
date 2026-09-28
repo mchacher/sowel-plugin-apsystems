@@ -62,6 +62,26 @@ describe("EnergyDeltas (sowel#934)", () => {
     expect(deltas.apply("INV_1", { energy_total: 1735 }).energy).toBe(2);
   });
 
+  it("a restart during a failed read does not credit the whole counter (review)", () => {
+    const persisted: Record<string, number> = {};
+    const first = mk(persisted).deltas;
+    first.apply("INV_1", { energy_total: 1732 });
+    const during = first.apply("INV_1", { energy_total: 0 });
+    // What the core persists while the drop is undecided is the last good value.
+    expect(during.energy_total).toBe(1732);
+    persisted["INV_1/energy_total"] = during.energy_total as number;
+
+    const afterRestart = mk(persisted).deltas;
+    expect(afterRestart.apply("INV_1", { energy_total: 1733 }).energy).toBe(1);
+  });
+
+  it("publishes the new counter again once a reset is confirmed", () => {
+    const { deltas } = mk();
+    deltas.apply("INV_1", { energy_total: 1732 });
+    deltas.apply("INV_1", { energy_total: 0 });
+    expect(deltas.apply("INV_1", { energy_total: 2 })).toMatchObject({ energy: 2, energy_total: 2 });
+  });
+
   it("a genuine reset counts from the low value, then forgets the old one", () => {
     const { deltas } = mk();
     deltas.apply("INV_1", { energy_total: 1732 });

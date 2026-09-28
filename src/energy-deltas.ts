@@ -78,6 +78,12 @@ export class EnergyDeltas {
       if (!totalKey.endsWith(TOTAL_SUFFIX) || typeof raw !== "number") continue;
       const deltaKey = totalKey.slice(0, -TOTAL_SUFFIX.length);
       out[deltaKey] = this.delta(deviceId, totalKey, raw);
+      // While a drop is undecided, publish the last good counter: it is what
+      // the core persists, and a restart rehydrates the baseline from it. The
+      // low value would make a failed read followed by a restart credit the
+      // whole counter when it comes back.
+      const lastGood = this.beforeDrop.get(`${deviceId}\0${totalKey}`);
+      if (lastGood !== undefined) out[totalKey] = lastGood;
     }
     return out;
   }
