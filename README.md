@@ -74,7 +74,7 @@ temperature. Create one Solar Panel per physical panel.
 
 | Setting          | Required | Default           | Notes                                |
 | ---------------- | -------- | ----------------- | ------------------------------------ |
-| `mqtt_url`       | yes      | —                 | e.g. `mqtt://192.168.0.230:1883`     |
+| `mqtt_url`       | yes      | `mqtt://host.docker.internal:1883` | e.g. `mqtt://192.168.0.230:1883`     |
 | `mqtt_username`  | no       | —                 |                                      |
 | `mqtt_password`  | no       | —                 |                                      |
 | `mqtt_client_id` | no       | `sowel-apsystems` | a random suffix is appended          |
