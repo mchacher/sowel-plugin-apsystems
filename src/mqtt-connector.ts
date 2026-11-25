@@ -6,6 +6,7 @@
  */
 
 import mqtt, { type MqttClient, type IClientOptions } from "mqtt";
+import { describeMqttError } from "./mqtt-status-detail.js";
 
 export type MessageHandler = (topic: string, payload: Buffer) => void;
 /** Called every time the live connection state changes, both up and down,
@@ -26,6 +27,8 @@ interface EventBus {
 
 export class MqttConnector {
   private client: MqttClient | null = null;
+  /** Spec 216: the last connection error, as a sentence; null once connected. */
+  private lastErrorDetail: string | null = null;
   private logger: Logger;
   private eventBus: EventBus;
   private integrationId: string;
@@ -69,6 +72,7 @@ export class MqttConnector {
       this.client = mqtt.connect(this.url, this.options);
 
       this.client.on("connect", () => {
+        this.lastErrorDetail = null;
         this.logger.info({ url: this.url }, "MQTT connected");
         this.eventBus.emit({ type: "system.integration.connected", integrationId: this.integrationId });
         // Re-subscribe every registered pattern on every (re)connect: a
@@ -98,6 +102,7 @@ export class MqttConnector {
       });
 
       this.client.on("error", (err) => {
+        this.lastErrorDetail = describeMqttError(err, this.url);
         this.logger.error({ err: err.message } as Record<string, unknown>, "MQTT error");
         doResolve();
       });
@@ -149,6 +154,11 @@ export class MqttConnector {
     this.client.publish(topic, payload, (err) => {
       if (err) this.logger.error({ err, topic } as Record<string, unknown>, "Publish error");
     });
+  }
+
+  /** Spec 216: why the broker connection is down, or null. */
+  getStatusDetail(): string | null {
+    return this.isConnected() ? null : this.lastErrorDetail;
   }
 
   isConnected(): boolean {

@@ -7,6 +7,7 @@
  */
 
 import { MqttConnector } from "./mqtt-connector.js";
+import { DEFAULT_MQTT_URL } from "./mqtt-status-detail.js";
 import { ApsystemsEngine } from "./apsystems-engine.js";
 import type { DeviceManager, EventBus, Logger } from "./apsystems-engine.js";
 
@@ -48,6 +49,7 @@ interface IntegrationPlugin {
   readonly apiVersion?: number;
   getStatus(): IntegrationStatus;
   isConfigured(): boolean;
+  getStatusDetail?(): string | null;
   getSettingsSchema(): IntegrationSettingDef[];
   start(options?: { pollOffset?: number }): Promise<void>;
   stop(): Promise<void>;
@@ -89,6 +91,13 @@ class ApsystemsPlugin implements IntegrationPlugin {
     return this.status;
   }
 
+  /** Spec 216 (sowel): why the broker connection is down, shown under the status. */
+  getStatusDetail(): string | null {
+    const status = this.getStatus();
+    if (status === "connected" || status === "not_configured") return null;
+    return this.mqtt?.getStatusDetail() ?? null;
+  }
+
   isConfigured(): boolean {
     return this.getSetting("mqtt_url") !== undefined;
   }
@@ -100,7 +109,8 @@ class ApsystemsPlugin implements IntegrationPlugin {
         label: "MQTT Broker URL",
         type: "text",
         required: true,
-        placeholder: "mqtt://localhost:1883",
+        placeholder: DEFAULT_MQTT_URL,
+        defaultValue: DEFAULT_MQTT_URL,
       },
       { key: "mqtt_username", label: "MQTT Username", type: "text", required: false },
       { key: "mqtt_password", label: "MQTT Password", type: "password", required: false },
